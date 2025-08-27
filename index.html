@@ -34,9 +34,9 @@
 
   <script>
     // 🔗 Configura tu proyecto Supabase
-    const supabaseUrl = "https://TU_PROYECTO.supabase.co";
-    const supabaseKey = "TU_API_KEY_PUBLICA";
-    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+    const NEXT_PUBLIC_SUPABASE_URL="https://lhnluarfjyzheezfrexr.supabase.co";
+    const NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxobmx1YXJmanl6aGVlemZyZXhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5NzYyOTAsImV4cCI6MjA3MDU1MjI5MH0.igYpeqlYnWW5i9NvOHSvlow3J-yDdEGgK6LRxYwvGY0";
+    const supabase = supabase.createClient(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
     let modoEdicion = false;
     let usuarioLogueado = null;
@@ -113,3 +113,4 @@
   </script>
 </body>
 </html>
+
