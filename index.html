@@ -1,116 +1,332 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Editor Web con Supabase</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Editor Profesional con Supabase</title>
   <script src="https://unpkg.com/@supabase/supabase-js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
-    #login, #editorSection { display: none; max-width: 800px; margin: 50px auto; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    #editor { border: 1px solid #ccc; min-height: 200px; padding: 10px; border-radius: 8px; background: #fff; }
-    button { margin: 10px 5px; padding: 10px 20px; border: none; border-radius: 8px; background: #0070f3; color: white; cursor: pointer; font-weight: bold; }
-    button:hover { background: #005bb5; }
+    :root{
+      --bg1:#0f172a; /* slate-900 */
+      --bg2:#1e293b; /* slate-800 */
+      --brand:#3b82f6; /* blue-500 */
+      --brand-700:#1d4ed8; /* blue-700 */
+      --muted:#94a3b8; /* slate-400 */
+      --ok:#22c55e; --warn:#f59e0b; --error:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));color:#e5e7eb;min-height:100vh;display:flex;align-items:center;justify-content:center}
+    .container{width:100%;max-width:1100px;padding:20px}
+    .card{background:#0b1020cc;backdrop-filter:blur(6px);border:1px solid #1f2937;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+    .hero{display:grid;grid-template-columns:1.2fr .8fr;gap:28px;padding:32px}
+    .hero h1{margin:0;font-size:40px;line-height:1.1}
+    .hero p{color:var(--muted);font-size:16px}
+    .btn{appearance:none;border:none;border-radius:12px;padding:12px 18px;background:var(--brand);color:white;font-weight:700;cursor:pointer;transition:transform .05s ease, background .2s ease;box-shadow:0 6px 18px rgba(59,130,246,.35)}
+    .btn:hover{background:var(--brand-700)}
+    .btn:active{transform:translateY(1px)}
+    .btn.secondary{background:#0f172a;border:1px solid #334155;box-shadow:none;color:#e2e8f0}
+    .input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #334155;background:#0b1222;color:#e2e8f0}
+    .stack{display:flex;flex-direction:column;gap:10px}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+
+    /* Editor layout */
+    #editorShell{display:none;margin-top:18px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #1f2937}
+    .toolbar{display:none;gap:8px;flex-wrap:wrap;padding:10px;border-bottom:1px solid #1f2937;background:#0b1020}
+    .toolbar .tool{padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-size:13px}
+    .toolbar .tool:hover{background:#111827}
+
+    .canvasWrap{position:relative;background:#0a0f1f;border-top:1px solid #1f2937;border-bottom:1px solid #1f2937}
+    #editor{min-height:460px;padding:28px;border-radius:0;outline:none}
+    #editor[contenteditable="true"]{cursor:text}
+
+    /* Blocks for drag&drop */
+    .block{position:relative;padding:14px;border-radius:12px;background:#0e1428;border:1px dashed transparent;transition:border-color .15s ease, box-shadow .15s ease}
+    .block:hover{box-shadow:0 0 0 1px #1f2937}
+    .block.draggable{cursor:move}
+    .block.selected{border-color:#60a5fa;box-shadow:0 0 0 2px rgba(96,165,250,.4)}
+    .gridOverlay{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(to right, rgba(255,255,255,.04) 1px, transparent 1px),linear-gradient(to bottom, rgba(255,255,255,.04) 1px, transparent 1px);background-size:20px 20px;opacity:.6;display:none}
+
+    .footer{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;color:var(--muted);font-size:13px}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid #334155;background:#0b1222}
+
+    /* Responsive */
+    @media (max-width: 860px){
+      .hero{grid-template-columns:1fr;}
+    }
   </style>
 </head>
 <body>
+  <div class="container">
+    <!-- HERO / LANDING -->
+    <section id="landing" class="card hero">
+      <div>
+        <h1>Constrúyela a tu estilo ✨</h1>
+        <p>Edita el diseño en vivo, arrastra bloques, inserta imágenes y botones. Los cambios se guardan en Supabase y se verán en cualquier dispositivo.</p>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" id="openLogin">Iniciar sesión</button>
+          <button class="btn secondary" id="viewOnly">Ver como visitante</button>
+        </div>
+        <p style="margin-top:14px;font-size:12px;color:#9ca3af">Demo protegida por login simple (tabla <code>usuarios</code>). Te recomiendo migrar luego a Supabase Auth.</p>
+      </div>
+      <div class="card" style="background:#0b1222;border:1px solid #1f2937">
+        <div class="stack">
+          <label style="font-weight:600">Correo</label>
+          <input class="input" id="email" type="email" placeholder="admin@demo.com" />
+          <label style="font-weight:600">Contraseña</label>
+          <input class="input" id="password" type="password" placeholder="123456" />
+          <div class="row" style="margin-top:6px">
+            <button class="btn" id="loginBtn">Entrar</button>
+            <button class="btn secondary" id="fillDemo">Usar credenciales demo</button>
+          </div>
+        </div>
+      </div>
+    </section>
 
-  <!-- Formulario de Login -->
-  <div id="login">
-    <h2>Iniciar Sesión</h2>
-    <input type="email" id="email" placeholder="Correo"><br><br>
-    <input type="password" id="password" placeholder="Contraseña"><br><br>
-    <button onclick="login()">Entrar</button>
-  </div>
+    <!-- EDITOR SHELL -->
+    <section id="editorShell" class="card">
+      <div class="topbar">
+        <div class="row">
+          <button class="btn" id="toggleEdit">🔧 Activar edición</button>
+          <span class="pill" id="statusPill">Modo lectura</span>
+        </div>
+        <div class="row">
+          <button class="btn secondary" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
 
-  <!-- Sección del Editor -->
-  <div id="editorSection">
-    <h2>Mi Página</h2>
-    <div id="editor" contenteditable="false"></div>
-    <br>
-    <button onclick="toggleEdicion()">Activar Edición</button>
-    <button onclick="guardarCambios()">Guardar</button>
-    <button onclick="logout()">Cerrar Sesión</button>
+      <div id="toolbar" class="toolbar">
+        <button class="tool" data-cmd="bold"><b>Negrita</b></button>
+        <button class="tool" data-cmd="italic"><i>Cursiva</i></button>
+        <button class="tool" data-cmd="underline"><u>Subrayado</u></button>
+        <button class="tool" id="h1Btn">H1</button>
+        <button class="tool" id="pBtn">Párrafo</button>
+        <button class="tool" id="addText">+ Texto</button>
+        <button class="tool" id="addImage">+ Imagen (URL)</button>
+        <button class="tool" id="addButton">+ Botón</button>
+        <button class="tool" id="alignLeft">Alinear ⬅️</button>
+        <button class="tool" id="alignCenter">Alinear ⏺️</button>
+        <button class="tool" id="alignRight">Alinear ➡️</button>
+        <button class="tool" id="deleteBlock">🗑️ Eliminar bloque</button>
+        <button class="tool" id="undoBtn">↶ Deshacer</button>
+        <button class="tool" id="redoBtn">↷ Rehacer</button>
+        <span class="pill">Consejo: arrastra un bloque con la tecla ALT presionada para moverlo (snap a 20px)</span>
+      </div>
+
+      <div class="canvasWrap">
+        <div class="gridOverlay" id="grid"></div>
+        <div id="editor" contenteditable="false">
+          <!-- El contenido se carga desde Supabase. Contenido inicial de respaldo debajo: -->
+          <div class="block draggable" style="margin:10px 0">
+            <h1 style="margin:0 0 10px">Bienvenido a mi página profesional</h1>
+            <p>Contenido inicial… edita en modo edición.</p>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <div>Estado: <span id="saveState">Sin cambios</span></div>
+        <div id="lastSaved" class="pill">—</div>
+      </div>
+    </section>
   </div>
 
   <script>
-    // 🔗 Configura tu proyecto Supabase
-    const NEXT_PUBLIC_SUPABASE_URL="https://lhnluarfjyzheezfrexr.supabase.co";
-    const NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxobmx1YXJmanl6aGVlemZyZXhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5NzYyOTAsImV4cCI6MjA3MDU1MjI5MH0.igYpeqlYnWW5i9NvOHSvlow3J-yDdEGgK6LRxYwvGY0";
-    const supabase = supabase.createClient(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    // === SUPABASE CONFIG (usando tus variables) ===
+    const supabaseUrl = "https://lhnluarfjyzheezfrexr.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxobmx1YXJmanl6aGVlemZyZXhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5NzYyOTAsImV4cCI6MjA3MDU1MjI5MH0.igYpeqlYnWW5i9NvOHSvlow3J-yDdEGgK6LRxYwvGY0";
+    const sb = supabase.createClient(supabaseUrl, supabaseKey);
 
-    let modoEdicion = false;
-    let usuarioLogueado = null;
+    // === UI Elements ===
+    const landing = document.getElementById('landing');
+    const editorShell = document.getElementById('editorShell');
+    const loginBtn = document.getElementById('loginBtn');
+    const openLogin = document.getElementById('openLogin');
+    const viewOnly = document.getElementById('viewOnly');
+    const fillDemo = document.getElementById('fillDemo');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const emailEl = document.getElementById('email');
+    const passEl = document.getElementById('password');
+    const editor = document.getElementById('editor');
+    const toolbar = document.getElementById('toolbar');
+    const toggleEditBtn = document.getElementById('toggleEdit');
+    const statusPill = document.getElementById('statusPill');
+    const saveState = document.getElementById('saveState');
+    const lastSaved = document.getElementById('lastSaved');
+    const grid = document.getElementById('grid');
 
-    // Mostrar login al inicio
-    document.getElementById("login").style.display = "block";
+    let isEditing = false;
+    let currentUser = null;
+    let selectedBlock = null;
 
-    async function login() {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
+    // Landing actions
+    document.getElementById('openLogin').onclick = () => {
+      document.querySelector('#landing .card:nth-child(2)').scrollIntoView({behavior:'smooth'});
+    }
+    fillDemo.onclick = () => { emailEl.value = 'admin@demo.com'; passEl.value = '123456'; }
+    viewOnly.onclick = async () => { await showEditorShell(false); };
 
-      const { data, error } = await supabase
-        .from("usuarios")
-        .select("*")
-        .eq("email", email)
-        .eq("password", password)
-        .single();
+    loginBtn.onclick = async () => {
+      const email = emailEl.value.trim();
+      const password = passEl.value.trim();
+      if(!email || !password){ alert('Completa correo y contraseña'); return; }
+      const { data, error } = await sb
+        .from('usuarios')
+        .select('*')
+        .eq('email', email)
+        .eq('password', password)
+        .maybeSingle();
+      if(error || !data){ alert('❌ Credenciales incorrectas'); return; }
+      currentUser = data;
+      await showEditorShell(true);
+    };
 
-      if (error || !data) {
-        alert("❌ Credenciales incorrectas");
+    logoutBtn.onclick = () => { currentUser = null; isEditing=false; setEditMode(false); landing.style.display='grid'; editorShell.style.display='none'; };
+
+    async function showEditorShell(canEdit){
+      landing.style.display='none'; editorShell.style.display='block';
+      await loadContent();
+      if(canEdit){
+        // quedan en modo lectura al entrar; el botón activa edición
+        toggleEditBtn.style.display='inline-flex';
+      }else{
+        toggleEditBtn.style.display='none';
+      }
+    }
+
+    async function loadContent(){
+      try{
+        const { data, error } = await sb.from('paginas').select('contenido').eq('id',1).maybeSingle();
+        if(error) throw error;
+        if(data && data.contenido){ editor.innerHTML = data.contenido; }
+        wireBlocks();
+        saveState.textContent = 'Sin cambios';
+      }catch(e){ console.error('Error cargando:', e); alert('No se pudo cargar el contenido. Revisa políticas RLS.'); }
+    }
+
+    async function saveContent(){
+      const html = editor.innerHTML;
+      try{
+        const { error } = await sb.from('paginas').update({ contenido: html }).eq('id',1);
+        if(error) throw error;
+        saveState.textContent = 'Guardado ✅';
+        lastSaved.textContent = 'Guardado: ' + new Date().toLocaleString();
+      }catch(e){ console.error('Guardar error:', e); saveState.textContent = 'Error al guardar'; alert('❌ Error al guardar. Revisa políticas RLS.'); }
+    }
+
+    // === Edit Mode toggle ===
+    toggleEditBtn.onclick = () => setEditMode(!isEditing);
+
+    function setEditMode(on){
+      isEditing = !!on;
+      editor.setAttribute('contenteditable', on ? 'true' : 'false');
+      toolbar.style.display = on ? 'flex' : 'none';
+      grid.style.display = on ? 'block' : 'none';
+      statusPill.textContent = on ? 'Modo edición' : 'Modo lectura';
+      toggleEditBtn.textContent = on ? '✅ Desactivar edición (y guardar)' : '🔧 Activar edición';
+      if(!on){ // auto-save on exit
+        selectedBlock = null; clearSelected();
+        saveContent();
       } else {
-        usuarioLogueado = data;
-        document.getElementById("login").style.display = "none";
-        document.getElementById("editorSection").style.display = "block";
-        cargarCambios();
+        wireBlocks();
       }
     }
 
-    async function cargarCambios() {
-      const { data, error } = await supabase
-        .from("paginas")
-        .select("contenido")
-        .eq("id", 1)
-        .single();
+    // === Toolbar basic formatting ===
+    toolbar.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.tool');
+      if(!btn) return;
+      const cmd = btn.dataset.cmd;
+      if(cmd){ document.execCommand(cmd,false,null); markDirty(); return; }
+    });
 
-      if (!error && data) {
-        document.getElementById("editor").innerHTML = data.contenido;
+    document.getElementById('h1Btn').onclick = ()=> wrapSelectionWith('<h1 style="margin:0 0 8px"></h1>');
+    document.getElementById('pBtn').onclick  = ()=> wrapSelectionWith('<p style="margin:0 0 8px"></p>');
+    document.getElementById('addText').onclick = ()=> addBlock('text');
+    document.getElementById('addImage').onclick = ()=> addBlock('image');
+    document.getElementById('addButton').onclick = ()=> addBlock('button');
+    document.getElementById('alignLeft').onclick = ()=> alignSelected('left');
+    document.getElementById('alignCenter').onclick = ()=> alignSelected('center');
+    document.getElementById('alignRight').onclick = ()=> alignSelected('right');
+    document.getElementById('deleteBlock').onclick = ()=> deleteSelected();
+    document.getElementById('undoBtn').onclick = ()=> document.execCommand('undo');
+    document.getElementById('redoBtn').onclick = ()=> document.execCommand('redo');
+
+    function markDirty(){ saveState.textContent = 'Cambios sin guardar…'; }
+
+    function wrapSelectionWith(html){
+      if(!isEditing) return;
+      const range = window.getSelection().getRangeAt(0);
+      const tmp = document.createElement('div'); tmp.innerHTML = html; const node = tmp.firstElementChild;
+      try{ range.surroundContents(node); markDirty(); }catch{ /* ignore if invalid range */ }
+    }
+
+    // === Blocks (create / select / drag with ALT) ===
+    function addBlock(type){
+      const block = document.createElement('div');
+      block.className = 'block draggable';
+      if(type==='text'){
+        block.innerHTML = '<h2 style="margin:0 0 6px">Nuevo bloque</h2><p>Edita este texto…</p>';
+      } else if(type==='image'){
+        const url = prompt('URL de la imagen:');
+        if(!url) return;
+        block.innerHTML = `<img src="${url}" alt="" style="max-width:100%;border-radius:12px"/>`;
+      } else if(type==='button'){
+        block.innerHTML = '<a href="#" style="display:inline-block;padding:10px 16px;border-radius:10px;background:#3b82f6;color:#fff;font-weight:700;text-decoration:none">Llamada a la acción</a>';
       }
+      block.style.margin = '10px 0';
+      editor.appendChild(block);
+      wireBlock(block);
+      selectBlock(block);
+      block.scrollIntoView({behavior:'smooth',block:'center'});
+      markDirty();
     }
 
-    async function guardarCambios() {
-      if (!modoEdicion) {
-        alert("Activa el modo edición primero");
-        return;
-      }
-      const contenido = document.getElementById("editor").innerHTML;
-
-      const { error } = await supabase
-        .from("paginas")
-        .update({ contenido })
-        .eq("id", 1);
-
-      if (error) {
-        alert("❌ Error al guardar");
-      } else {
-        alert("✅ Cambios guardados");
-      }
+    function wireBlocks(){
+      editor.querySelectorAll('.block').forEach(wireBlock);
     }
 
-    function toggleEdicion() {
-      modoEdicion = !modoEdicion;
-      const editor = document.getElementById("editor");
-      const boton = document.querySelector("#editorSection button");
-
-      editor.contentEditable = modoEdicion;
-      boton.innerText = modoEdicion ? "Desactivar Edición" : "Activar Edición";
+    function wireBlock(block){
+      block.classList.add('draggable');
+      block.addEventListener('click', (e)=>{
+        if(!isEditing) return; // ignore in read mode
+        selectBlock(block);
+        e.stopPropagation();
+      });
+      // Drag with ALT key
+      let dragging=false, startX=0,startY=0, startTop=0,startLeft=0;
+      block.addEventListener('mousedown', (e)=>{
+        if(!isEditing || !e.altKey) return;
+        dragging=true; editor.style.position='relative';
+        const rect = block.getBoundingClientRect();
+        const parentRect = editor.getBoundingClientRect();
+        startX = e.clientX; startY=e.clientY;
+        // switch to absolute positioning
+        const top = rect.top - parentRect.top + editor.scrollTop;
+        const left = rect.left - parentRect.left + editor.scrollLeft;
+        block.style.position='absolute'; block.style.top=top+'px'; block.style.left=left+'px'; block.style.width=rect.width+'px';
+        startTop = top; startLeft = left;
+        selectBlock(block);
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp, { once:true });
+        e.preventDefault();
+      });
+      function onMove(e){ if(!dragging) return; const dx=e.clientX-startX, dy=e.clientY-startY; let nx=startLeft+dx, ny=startTop+dy; // snap 20px
+        nx = Math.round(nx/20)*20; ny = Math.round(ny/20)*20; block.style.left=nx+'px'; block.style.top=ny+'px'; }
+      function onUp(){ dragging=false; document.removeEventListener('mousemove', onMove); markDirty(); }
     }
 
-    function logout() {
-      usuarioLogueado = null;
-      document.getElementById("editorSection").style.display = "none";
-      document.getElementById("login").style.display = "block";
-    }
+    function selectBlock(el){ clearSelected(); selectedBlock = el; el.classList.add('selected'); }
+    function clearSelected(){ editor.querySelectorAll('.block.selected').forEach(n=>n.classList.remove('selected')); }
+    editor.addEventListener('click', ()=>{ if(!isEditing) return; clearSelected(); selectedBlock=null; });
+
+    function alignSelected(where){ if(!selectedBlock) return; selectedBlock.style.textAlign = where; markDirty(); }
+    function deleteSelected(){ if(!selectedBlock) return; selectedBlock.remove(); selectedBlock=null; markDirty(); }
+
+    // Detect content changes
+    editor.addEventListener('input', ()=>{ if(isEditing) markDirty(); });
+
+    // Warn on unload if unsaved
+    window.addEventListener('beforeunload', (e)=>{ if(isEditing && saveState.textContent.includes('sin guardar')){ e.preventDefault(); e.returnValue=''; }});
   </script>
 </body>
 </html>
-
