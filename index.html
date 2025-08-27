@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Editor Web con Supabase</title>
+  <script src="https://unpkg.com/@supabase/supabase-js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
+    #login, #editorSection { display: none; max-width: 800px; margin: 50px auto; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    #editor { border: 1px solid #ccc; min-height: 200px; padding: 10px; border-radius: 8px; background: #fff; }
+    button { margin: 10px 5px; padding: 10px 20px; border: none; border-radius: 8px; background: #0070f3; color: white; cursor: pointer; font-weight: bold; }
+    button:hover { background: #005bb5; }
+  </style>
+</head>
+<body>
+
+  <!-- Formulario de Login -->
+  <div id="login">
+    <h2>Iniciar Sesión</h2>
+    <input type="email" id="email" placeholder="Correo"><br><br>
+    <input type="password" id="password" placeholder="Contraseña"><br><br>
+    <button onclick="login()">Entrar</button>
+  </div>
+
+  <!-- Sección del Editor -->
+  <div id="editorSection">
+    <h2>Mi Página</h2>
+    <div id="editor" contenteditable="false"></div>
+    <br>
+    <button onclick="toggleEdicion()">Activar Edición</button>
+    <button onclick="guardarCambios()">Guardar</button>
+    <button onclick="logout()">Cerrar Sesión</button>
+  </div>
+
+  <script>
+    // 🔗 Configura tu proyecto Supabase
+    const supabaseUrl = "https://TU_PROYECTO.supabase.co";
+    const supabaseKey = "TU_API_KEY_PUBLICA";
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    let modoEdicion = false;
+    let usuarioLogueado = null;
+
+    // Mostrar login al inicio
+    document.getElementById("login").style.display = "block";
+
+    async function login() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      const { data, error } = await supabase
+        .from("usuarios")
+        .select("*")
+        .eq("email", email)
+        .eq("password", password)
+        .single();
+
+      if (error || !data) {
+        alert("❌ Credenciales incorrectas");
+      } else {
+        usuarioLogueado = data;
+        document.getElementById("login").style.display = "none";
+        document.getElementById("editorSection").style.display = "block";
+        cargarCambios();
+      }
+    }
+
+    async function cargarCambios() {
+      const { data, error } = await supabase
+        .from("paginas")
+        .select("contenido")
+        .eq("id", 1)
+        .single();
+
+      if (!error && data) {
+        document.getElementById("editor").innerHTML = data.contenido;
+      }
+    }
+
+    async function guardarCambios() {
+      if (!modoEdicion) {
+        alert("Activa el modo edición primero");
+        return;
+      }
+      const contenido = document.getElementById("editor").innerHTML;
+
+      const { error } = await supabase
+        .from("paginas")
+        .update({ contenido })
+        .eq("id", 1);
+
+      if (error) {
+        alert("❌ Error al guardar");
+      } else {
+        alert("✅ Cambios guardados");
+      }
+    }
+
+    function toggleEdicion() {
+      modoEdicion = !modoEdicion;
+      const editor = document.getElementById("editor");
+      const boton = document.querySelector("#editorSection button");
+
+      editor.contentEditable = modoEdicion;
+      boton.innerText = modoEdicion ? "Desactivar Edición" : "Activar Edición";
+    }
+
+    function logout() {
+      usuarioLogueado = null;
+      document.getElementById("editorSection").style.display = "none";
+      document.getElementById("login").style.display = "block";
+    }
+  </script>
+</body>
+</html>
